@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Roarダーツチャレンジ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 0.25; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.03); }
+    }
+    .wheel-glow {
+      animation: pulse-ring 2.2s infinite ease-in-out;
+    }
+    @keyframes pop-in {
+      0% { transform: scale(0.6); opacity: 0; }
+      70% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .result-pop {
+      animation: pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 overflow-x-hidden">
+
+  <!-- ヘッダー -->
+  <header class="w-full max-w-2xl flex items-center justify-between py-2 border-b border-slate-800">
+    <h1 class="text-xl font-black tracking-wider text-amber-400">BIG CHALLENGE</h1>
+    <div class="flex items-center gap-2">
+      <button id="retry-btn" class="hidden bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-4 py-1.5 rounded-lg border border-slate-700 text-sm transition">
+        もう一度投げる
+      </button>
+    </div>
+  </header>
+
+  <!-- メインエリア（的とダーツ） -->
+  <main class="relative flex flex-col items-center justify-center my-4 w-full max-w-lg">
+    <!-- ダーツ盤コンテナ -->
+    <div class="relative w-full aspect-square max-w-[440px] flex items-center justify-center">
+      <div class="absolute inset-0 rounded-full bg-amber-500/10 blur-xl wheel-glow pointer-events-none"></div>
+      <canvas id="dartboard" width="600" height="600" class="w-full h-full cursor-crosshair rounded-full shadow-2xl relative z-10"></canvas>
+      <div id="aim-guide" class="absolute pointer-events-none text-xs font-bold text-slate-300 bg-slate-900/85 px-3.5 py-1.5 rounded-full border border-slate-700 z-20 transition-opacity">
+        盤面をクリックして投擲
+      </div>
+    </div>
+
+    <!-- ネタボタン -->
+    <div id="cheat-container" class="mt-4 flex flex-col items-center z-20">
+      <button id="miss-pajero-btn" class="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white font-black text-sm sm:text-base px-6 py-2.5 rounded-full shadow-xl border border-white/20 active:scale-95 transition tracking-wider flex items-center gap-2">
+        <span>No.1? No.1? Who's that?</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- 景品定義 GUIエディタ -->
+  <section class="w-full max-w-2xl bg-slate-900/90 border border-slate-800 rounded-2xl p-4 mb-4 text-xs z-20">
+    <div class="flex items-center justify-between cursor-pointer select-none" id="toggle-editor">
+      <span class="font-bold text-slate-300 text-sm flex items-center gap-2">
+        ⚙️ 景品リスト・比率のカスタマイズ
+      </span>
+      <span id="editor-arrow" class="text-slate-400 transform transition-transform">▼</span>
+    </div>
+
+    <div id="editor-body" class="hidden mt-3 pt-3 border-t border-slate-800 flex flex-col gap-3">
+      <!-- 景品リストヘッダー -->
+      <div class="grid grid-cols-12 gap-2 text-slate-400 font-bold px-1 text-[11px]">
+        <div class="col-span-3">盤面名称</div>
+        <div class="col-span-4">当落テキスト</div>
+        <div class="col-span-3">割合(比率)</div>
+        <div class="col-span-2 text-center">削除</div>
+      </div>
+
+      <!-- 景品リスト行コンテナ -->
+      <div id="prize-items-container" class="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1"></div>
+
+      <!-- 操作ボタン群 -->
+      <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800/80">
+        <button id="add-prize-btn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center gap-1">
+          <span>＋ 景品を追加</span>
+        </button>
+        <div class="flex gap-2">
+          <button id="reset-prizes-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition font-bold">初期状態に戻す</button>
+          <button id="apply-prizes-btn" class="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black transition">盤面に反映</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 全画面リザルトオーバーレイ -->
+  <div id="result-overlay" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer">
+    <div id="result-card" class="result-pop flex flex-col items-center justify-center max-w-4xl w-full">
+      <div id="result-badge" class="text-sm font-black tracking-widest px-4 py-1 rounded-full mb-4 inline-block shadow-lg">
+        RESULT
+      </div>
+      <div id="result-text" class="font-black tracking-tight leading-tight select-none"></div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_PRIZES = [
+      { id: 1, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 2, name: "パジェロ", weight: 1.1, color: "#e63946", textColor: "#ffffff", desc: "パジェロ" },
+      { id: 3, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 4, name: "センブリソーダ1年分", weight: 1.0, color: "#eab308", textColor: "#000000", desc: "センブリソーダ1年分" },
+      { id: 5, name: "SSD", weight: 1.3, color: "#ec4899", textColor: "#ffffff", desc: "SSD" },
+      { id: 6, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 7, name: "倉本グループ経営温泉旅館宿泊券", weight: 1.2, color: "#f97316", textColor: "#ffffff", desc: "倉本グループ経営温泉旅館宿泊券" },
+      { id: 8, name: "AP回復ドリンク", weight: 1.4, color: "#10b981", textColor: "#022c22", desc: "AP回復ドリンク" },
+      { id: 9, name: "初星ホエイプロテイン1年分", weight: 1.2, color: "#facc15", textColor: "#422006", desc: "初星ホエイプロテイン1年分" },
+      { id: 10, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 11, name: "ふわふわでもこもこ", weight: 1.2, color: "#a855f7", textColor: "#ffffff", desc: "ふわふわでもこもこ" }
+    ];
+
+    const COLOR_PALETTE = ["#e63946", "#f97316", "#eab308", "#10b981", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#7c4a3a"];
+
+    let currentPrizes = JSON.parse(JSON.stringify(DEFAULT_PRIZES));
+    let slices = [];
+
+    // DOM要素
+    const canvas = document.getElementById("dartboard");
+    const ctx = canvas.getContext("2d");
+    const resultOverlay = document.getElementById("result-overlay");
+    const resultBadge = document.getElementById("result-badge");
+    const resultText = document.getElementById("result-text");
+    const aimGuide = document.getElementById("aim-guide");
+    const cheatContainer = document.getElementById("cheat-container");
+    const missBtn = document.getElementById("miss-pajero-btn");
+    const retryBtn = document.getElementById("retry-btn");
+
+    // GUIエディタ要素
+    const toggleEditor = document.getElementById("toggle-editor");
+    const editorBody = document.getElementById("editor-body");
+    const editorArrow = document.getElementById("editor-arrow");
+    const prizeContainer = document.getElementById("prize-items-container");
+    const addPrizeBtn = document.getElementById("add-prize-btn");
+    const applyPrizesBtn = document.getElementById("apply-prizes-btn");
+    const resetPrizesBtn = document.getElementById("reset-prizes-btn");
+
+    // 物理・回転状態
+    const BASE_SPEED = 0.24;
+    let currentSpeed = BASE_SPEED;
+    let wheelAngle = 0;
+    let state = "IDLE"; // IDLE, FLYING, DECELERATING, HIGHLIGHTING, FINISHED
+
+    let dart = null;
+    let hitSliceIndex = -1;
+    let highlightPulse = 0;
+
+    // スライス計算
+    function recalculateSlices() {
+      const totalWeight = currentPrizes.reduce((sum, p) => sum + (Number(p.weight) || 0.1), 0);
+      let accumAngle = 0;
+      slices = currentPrizes.map((p, idx) => {
+        const w = Number(p.weight) || 0.1;
+        const angle = (w / totalWeight) * Math.PI * 2;
+        const start = accumAngle;
+        accumAngle += angle;
+        return {
+          ...p,
+          index: idx,
+          startAngle: start,
+          endAngle: accumAngle,
+          arcAngle: angle
+        };
+      });
+    }
+
+    // GUIエディタの再描画
+    function renderGUIEditor() {
+      prizeContainer.innerHTML = "";
+      currentPrizes.forEach((p, idx) => {
+        const row = document.createElement("div");
+        row.className = "grid grid-cols-12 gap-2 items-center bg-slate-950/70 p-1.5 rounded-lg border border-slate-800 text-[11px]";
+
+        row.innerHTML = `
+          <div class="col-span-3">
+            <input type="text" class="name-input w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-white focus:outline-none focus:border-amber-400" value="${escapeHtml(p.name)}">
+          </div>
+          <div class="col-span-4">
+            <input type="text" class="desc-input w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-white focus:outline-none focus:border-amber-400" value="${escapeHtml(p.desc || p.name)}">
+          </div>
+          <div class="col-span-3 flex items-center gap-1">
+            <button class="minus-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold flex items-center justify-center shrink-0">-</button>
+            <input type="number" step="0.1" min="0.1" max="10" class="weight-input w-full bg-slate-900 border border-slate-700 px-1 py-1 rounded text-center text-white focus:outline-none focus:border-amber-400 font-mono" value="${Number(p.weight).toFixed(1)}">
+            <button class="plus-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold flex items-center justify-center shrink-0">+</button>
+          </div>
+          <div class="col-span-2 flex justify-center">
+            <button class="del-btn w-6 h-6 rounded bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold flex items-center justify-center border border-rose-800/60">✕</button>
+          </div>
+        `;
+
+        const nameInput = row.querySelector(".name-input");
+        const descInput = row.querySelector(".desc-input");
+        const weightInput = row.querySelector(".weight-input");
+        const minusBtn = row.querySelector(".minus-btn");
+        const plusBtn = row.querySelector(".plus-btn");
+        const delBtn = row.querySelector(".del-btn");
+
+        nameInput.addEventListener("input", (e) => { p.name = e.target.value; });
+        descInput.addEventListener("input", (e) => { p.desc = e.target.value; });
+        
+        const updateWeight = (val) => {
+          let num = Math.max(0.1, Math.round(val * 10) / 10);
+          p.weight = num;
+          weightInput.value = num.toFixed(1);
+        };
+
+        weightInput.addEventListener("change", (e) => {
+          updateWeight(parseFloat(e.target.value) || 0.1);
+        });
+
+        minusBtn.addEventListener("click", () => {
+          updateWeight(Number(p.weight) - 0.1);
+        });
+
+        plusBtn.addEventListener("click", () => {
+          updateWeight(Number(p.weight) + 0.1);
+        });
+
+        delBtn.addEventListener("click", () => {
+          if (currentPrizes.length <= 2) {
+            alert("景品は2つ以上必要です");
+            return;
+          }
+          currentPrizes.splice(idx, 1);
+          renderGUIEditor();
+        });
+
+        prizeContainer.appendChild(row);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    recalculateSlices();
+    renderGUIEditor();
+
+    // 盤面描画
+    function drawBoard() {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const radius = 270;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 外周フレーム
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 18, 0, Math.PI * 2);
+      ctx.fillStyle = "#1e293b";
+      ctx.fill();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#f59e0b";
+      ctx.stroke();
+
+      // ホイールローカル座標系
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(wheelAngle);
+
+      slices.forEach((slice, idx) => {
+        const isHitSlice = (state === "HIGHLIGHTING" || state === "FINISHED") && idx === hitSliceIndex;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, slice.startAngle, slice.endAngle);
+        ctx.closePath();
+
+        if (state === "HIGHLIGHTING" || state === "FINISHED") {
+          if (isHitSlice) {
+            ctx.fillStyle = slice.color;
+            ctx.fill();
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + Math.sin(highlightPulse) * 0.25})`;
+            ctx.fill();
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "#ffd700";
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = slice.color;
+            ctx.fill();
+            ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "rgba(255,255,255,0.3)";
+            ctx.stroke();
+          }
+        } else {
+          ctx.fillStyle = slice.color || "#475569";
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+        }
+
+        // テキスト
+        ctx.save();
+        const midAngle = (slice.startAngle + slice.endAngle) / 2;
+        ctx.rotate(midAngle);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+
+        if (isHitSlice) {
+          ctx.fillStyle = "#ffffff";
+          ctx.shadowColor = "#000000";
+          ctx.shadowBlur = 8;
+        } else {
+          ctx.fillStyle = slice.textColor || "#ffffff";
+        }
+
+        const text = slice.name || "";
+        const maxLen = text.length;
+        let fontSize = 22;
+        if (maxLen > 10) fontSize = 15;
+        else if (maxLen > 6) fontSize = 18;
+        if (slice.arcAngle < 0.25) fontSize = 13;
+
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillText(text, radius - 20, 0);
+        ctx.restore();
+      });
+
+      // 刺さったダーツ
+      if (dart && dart.isPinned) {
+        ctx.save();
+        ctx.translate(dart.localX, dart.localY);
+        ctx.rotate(dart.stickAngle);
+        drawDartGraphic(0, 0, true);
+        ctx.restore();
+
+        if (state === "HIGHLIGHTING" || state === "FINISHED") {
+          ctx.save();
+          ctx.translate(dart.localX, dart.localY);
+
+          const pulseR = 18 + Math.sin(highlightPulse) * 8;
+          ctx.beginPath();
+          ctx.arc(0, 0, pulseR, 0, Math.PI * 2);
+          ctx.strokeStyle = "#fef08a";
+          ctx.lineWidth = 3.5;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(0, 0, 5, 0, Math.PI * 2);
+          ctx.fillStyle = "#ef4444";
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.save();
+          ctx.rotate(-wheelAngle);
+          ctx.fillStyle = "#dc2626";
+          ctx.beginPath();
+          ctx.roundRect(-24, -38, 48, 20, 6);
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "black 10px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("HERE!", 0, -28);
+          ctx.restore();
+
+          ctx.restore();
+        }
+      }
+
+      ctx.restore(); // ホイール座標系終了
+
+      // ハブ
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+      ctx.fillStyle = "#0f172a";
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#fbbf24";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "#f59e0b";
+      ctx.fill();
+
+      // 飛翔中のダーツ
+      if (state === "FLYING" && dart) {
+        ctx.save();
+        ctx.translate(dart.currentX, dart.currentY);
+        drawDartGraphic(0, 0, false, dart.progress);
+        ctx.restore();
+      }
+    }
+
+    function drawDartGraphic(x, y, isPinned, progress = 1) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      if (!isPinned) {
+        const scale = 2.2 - progress * 1.2;
+        ctx.scale(scale, scale);
+      }
+
+      ctx.fillStyle = "#cbd5e1";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-8, -2.5);
+      ctx.lineTo(-8, 2.5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "#94a3b8";
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(-8, 0);
+      ctx.lineTo(-24, 0);
+      ctx.stroke();
+
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath();
+      ctx.moveTo(-22, 0);
+      ctx.lineTo(-38, -9);
+      ctx.lineTo(-32, 0);
+      ctx.lineTo(-38, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#b91c1c";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // 投擲開始
+    function shootDart(worldTargetX, worldTargetY, designatedLocalAngle = null, designatedDist = null) {
+      if (state !== "IDLE") return;
+      state = "FLYING";
+
+      aimGuide.style.opacity = "0";
+      cheatContainer.style.display = "none";
+
+      const cx = canvas.width / 2;
+      const startX = cx;
+      const startY = canvas.height + 60;
+
+      dart = {
+        startX,
+        startY,
+        targetX: worldTargetX,
+        targetY: worldTargetY,
+        currentX: startX,
+        currentY: startY,
+        progress: 0,
+        isPinned: false,
+        designatedLocalAngle: designatedLocalAngle,
+        designatedDist: designatedDist
+      };
+
+      const duration = 240;
+      const startTime = performance.now();
+
+      function animateFly(now) {
+        const elapsed = now - startTime;
+        dart.progress = Math.min(1, elapsed / duration);
+        const p = dart.progress;
+
+        dart.currentX = dart.startX + (dart.targetX - dart.startX) * p;
+        dart.currentY = dart.startY + (dart.targetY - dart.startY) * p;
+
+        if (p < 1) {
+          requestAnimationFrame(animateFly);
+        } else {
+          onDartHit();
+        }
+      }
+      requestAnimationFrame(animateFly);
+    }
+
+    // 命中時処理
+    function onDartHit() {
+      state = "DECELERATING";
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      let localX, localY;
+
+      // ネタボタンによる固定目標がある場合、そのローカル座標に直接固定
+      if (dart.designatedLocalAngle !== null) {
+        const angle = dart.designatedLocalAngle;
+        const dist = dart.designatedDist || 180;
+        localX = Math.cos(angle) * dist;
+        localY = Math.sin(angle) * dist;
+      } else {
+        const dx = dart.targetX - cx;
+        const dy = dart.targetY - cy;
+        const cos = Math.cos(-wheelAngle);
+        const sin = Math.sin(-wheelAngle);
+        localX = dx * cos - dy * sin;
+        localY = dx * sin + dy * cos;
+      }
+
+      dart.localX = localX;
+      dart.localY = localY;
+      dart.stickAngle = Math.atan2(localY, localX);
+      dart.isPinned = true;
+
+      // スライスの特定
+      let hitAngle = Math.atan2(localY, localX);
+      if (hitAngle < 0) hitAngle += Math.PI * 2;
+
+      hitSliceIndex = slices.findIndex(s => hitAngle >= s.startAngle && hitAngle < s.endAngle);
+      if (hitSliceIndex === -1) hitSliceIndex = 0;
+    }
+
+    // No.1? No.1? Who's that?（パジェロのすぐ横のたわしに100%確実に刺す）
+    function shootMissPajero() {
+      if (state !== "IDLE") return;
+
+      const pajeroIdx = slices.findIndex(s => s.name === "パジェロ" || s.id === 2);
+      if (pajeroIdx === -1) {
+        // パジェロが無い場合は最初のスライスへ
+        shootDart(canvas.width / 2 + 100, canvas.height / 2);
+        return;
+      }
+
+      const pajeroSlice = slices[pajeroIdx];
+      // パジェロの前後のスライス
+      const prevSlice = slices[(pajeroIdx - 1 + slices.length) % slices.length];
+      const nextSlice = slices[(pajeroIdx + 1) % slices.length];
+
+      // 前後のうち「たわし」を優先、なければどちらか一方
+      let targetSlice;
+      if (prevSlice.name.includes("たわし")) {
+        targetSlice = prevSlice;
+      } else if (nextSlice.name.includes("たわし")) {
+        targetSlice = nextSlice;
+      } else {
+        targetSlice = Math.random() < 0.5 ? prevSlice : nextSlice;
+      }
+
+      // パジェロの境界線から、わずか 0.05 ラジアン（約2.8度）内側に入ったギリギリの位置
+      let localAngle;
+      if (targetSlice.endAngle === pajeroSlice.startAngle) {
+        // パジェロの直前のスライス：終端境界のすぐ手前
+        localAngle = targetSlice.endAngle - 0.05;
+      } else {
+        // パジェロの直後のスライス：開始境界のすぐ直後
+        localAngle = targetSlice.startAngle + 0.05;
+      }
+      localAngle = (localAngle + Math.PI * 2) % (Math.PI * 2);
+
+      const dist = 180 + (Math.random() * 20 - 10);
+
+      // 飛翔時間(240ms)後のホイール回転を先読みして画面上の目標座標を算出
+      const flightFrames = 240 / (1000 / 60);
+      const futureWheelAngle = wheelAngle + (currentSpeed * flightFrames);
+      const futureWorldAngle = futureWheelAngle + localAngle;
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const targetX = cx + Math.cos(futureWorldAngle) * dist;
+      const targetY = cy + Math.sin(futureWorldAngle) * dist;
+
+      // designatedLocalAngle を渡して着弾位置をローカル上でズレなく保証
+      shootDart(targetX, targetY, localAngle, dist);
+    }
+
+    // 全画面リザルト表示
+    function showResult(prize) {
+      retryBtn.classList.remove("hidden");
+
+      const text = (prize && prize.desc) ? prize.desc : (prize ? prize.name : "ハズレ");
+      resultText.textContent = text;
+
+      if (text.length <= 4) {
+        resultText.className = "font-black tracking-tight text-7xl sm:text-8xl md:text-9xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)]";
+      } else if (text.length <= 8) {
+        resultText.className = "font-black tracking-tight text-5xl sm:text-6xl md:text-7xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)]";
+      } else {
+        resultText.className = "font-black tracking-tight text-3xl sm:text-4xl md:text-5xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)] px-4";
+      }
+
+      if (prize && (prize.name === "パジェロ" || prize.id === 2)) {
+        resultText.style.color = "#ef4444";
+        resultBadge.textContent = "★ GRAND PRIZE ★";
+        resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-red-600 text-white inline-block shadow-lg";
+      } else if (prize && prize.name.includes("たわし")) {
+        resultText.style.color = "#f59e0b";
+        resultBadge.textContent = "TAWASHI";
+        resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-amber-800 text-amber-200 inline-block shadow-lg";
+      } else {
+        resultText.style.color = "#38bdf8";
+        resultBadge.textContent = "PRIZE GET";
+        resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-sky-900 text-sky-200 inline-block shadow-lg";
+      }
+
+      resultOverlay.classList.remove("hidden");
+    }
+
+    function resetGame() {
+      state = "IDLE";
+      dart = null;
+      hitSliceIndex = -1;
+      highlightPulse = 0;
+      currentSpeed = BASE_SPEED;
+      resultOverlay.classList.add("hidden");
+      retryBtn.classList.add("hidden");
+      aimGuide.style.opacity = "1";
+      cheatContainer.style.display = "flex";
+    }
+
+    function loop() {
+      if (state === "IDLE" || state === "FLYING") {
+        wheelAngle = (wheelAngle + currentSpeed) % (Math.PI * 2);
+      } else if (state === "DECELERATING") {
+        wheelAngle = (wheelAngle + currentSpeed) % (Math.PI * 2);
+        currentSpeed *= 0.965;
+
+        if (currentSpeed < 0.0005) {
+          currentSpeed = 0;
+          state = "HIGHLIGHTING";
+
+          const hitPrize = slices[hitSliceIndex];
+          const highlightStart = performance.now();
+
+          function animateHighlight(now) {
+            const elapsed = now - highlightStart;
+            highlightPulse = elapsed * 0.008;
+
+            if (elapsed < 1800) {
+              requestAnimationFrame(animateHighlight);
+            } else {
+              state = "FINISHED";
+              showResult(hitPrize);
+            }
+          }
+          requestAnimationFrame(animateHighlight);
+        }
+      }
+
+      drawBoard();
+      requestAnimationFrame(loop);
+    }
+
+    // 盤面クリック投擲
+    canvas.addEventListener("pointerdown", (e) => {
+      if (state !== "IDLE") return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      shootDart(x, y);
+    });
+
+    missBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      shootMissPajero();
+    });
+
+    retryBtn.addEventListener("click", resetGame);
+    resultOverlay.addEventListener("click", resetGame);
+
+    // エディタ開閉
+    toggleEditor.addEventListener("click", () => {
+      const isHidden = editorBody.classList.contains("hidden");
+      if (isHidden) {
+        editorBody.classList.remove("hidden");
+        editorArrow.textContent = "▲";
+      } else {
+        editorBody.classList.add("hidden");
+        editorArrow.textContent = "▼";
+      }
+    });
+
+    // 景品追加
+    addPrizeBtn.addEventListener("click", () => {
+      const nextId = Date.now();
+      const color = COLOR_PALETTE[currentPrizes.length % COLOR_PALETTE.length];
+      currentPrizes.push({
+        id: nextId,
+        name: "新景品",
+        weight: 1.0,
+        color: color,
+        textColor: "#ffffff",
+        desc: "新景品"
+      });
+      renderGUIEditor();
+    });
+
+    // 反映
+    applyPrizesBtn.addEventListener("click", () => {
+      recalculateSlices();
+      renderGUIEditor();
+      resetGame();
+    });
+
+    // 初期化
+    resetPrizesBtn.addEventListener("click", () => {
+      currentPrizes = JSON.parse(JSON.stringify(DEFAULT_PRIZES));
+      recalculateSlices();
+      renderGUIEditor();
+      resetGame();
+    });
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
