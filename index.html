@@ -16,17 +16,37 @@
       0%, 100% { opacity: 0.25; transform: scale(1); }
       50% { opacity: 0.6; transform: scale(1.03); }
     }
-    .wheel-glow {
-      animation: pulse-ring 2.2s infinite ease-in-out;
-    }
+    .wheel-glow { animation: pulse-ring 2.2s infinite ease-in-out; }
+
     @keyframes pop-in {
       0% { transform: scale(0.6); opacity: 0; }
       70% { transform: scale(1.05); opacity: 1; }
       100% { transform: scale(1); opacity: 1; }
     }
-    .result-pop {
-      animation: pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    .result-pop { animation: pop-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    /* 結果文字：一瞬大きく叩きつけてから落ち着く */
+    @keyframes slam {
+      0% { transform: scale(2.4); opacity: 0; filter: blur(6px); }
+      45% { transform: scale(0.92); opacity: 1; filter: blur(0); }
+      70% { transform: scale(1.04); }
+      100% { transform: scale(1); }
     }
+    .slam { animation: slam 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+    @keyframes fade-up {
+      0% { transform: translateY(12px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .fade-up { animation: fade-up 0.35s ease-out both; }
+
+    /* ネタボタンの呼び込み */
+    @keyframes beckon {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.55); }
+      50% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+    }
+    .beckon { animation: beckon 1.6s infinite ease-in-out; }
+    .beckon:active { animation: none; transform: scale(0.95); }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4 overflow-x-hidden">
@@ -38,32 +58,34 @@
       <button id="retry-btn" class="hidden bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-4 py-1.5 rounded-lg border border-slate-700 text-sm transition">
         もう一度投げる
       </button>
+      <button id="sound-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold w-9 h-9 rounded-lg border border-slate-700 text-base transition" aria-label="サウンド切り替え">🔊</button>
     </div>
   </header>
 
   <!-- メインエリア（的とダーツ） -->
   <main class="relative flex flex-col items-center justify-center my-4 w-full max-w-lg">
-    
+
     <!-- ダーツ盤の上のRoarリンク -->
     <div class="mb-3 z-20">
-      <a href="https://youtu.be/qQj5tmiiaw8?si=rqpEzGHVw-1Czbbt" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-400/90 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3.5 py-1.5 rounded-full transition shadow-sm backdrop-blur-sm">
+      <a id="mv-link" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-400/90 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3.5 py-1.5 rounded-full transition shadow-sm backdrop-blur-sm">
         <span>▶</span>
-        <span>十王星南 - Roar (YouTube公式)</span>
+        <span>十王星南 - Roar (MV)</span>
       </a>
     </div>
 
-    <!-- ダーツ盤コンテナ -->
-    <div class="relative w-full aspect-square max-w-[440px] flex items-center justify-center">
+    <!-- ダーツ盤コンテナ（画面振動はこの要素を揺らす） -->
+    <div id="board-wrap" class="relative w-full aspect-square max-w-[440px] flex items-center justify-center">
       <div class="absolute inset-0 rounded-full bg-amber-500/10 blur-xl wheel-glow pointer-events-none"></div>
       <canvas id="dartboard" width="600" height="600" class="w-full h-full cursor-crosshair rounded-full shadow-2xl relative z-10"></canvas>
+      <div id="flash" class="absolute inset-0 rounded-full bg-white pointer-events-none z-20" style="opacity:0"></div>
       <div id="aim-guide" class="absolute pointer-events-none text-xs font-bold text-slate-300 bg-slate-900/85 px-3.5 py-1.5 rounded-full border border-slate-700 z-20 transition-opacity">
-        盤面をクリックして投擲
+        盤面をタップして投擲
       </div>
     </div>
 
     <!-- ネタボタン -->
     <div id="cheat-container" class="mt-4 flex flex-col items-center z-20">
-      <button id="miss-pajero-btn" class="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white font-black text-sm sm:text-base px-6 py-2.5 rounded-full shadow-xl border border-white/20 active:scale-95 transition tracking-wider flex items-center gap-2">
+      <button id="miss-pajero-btn" class="beckon bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white font-black text-sm sm:text-base px-6 py-2.5 rounded-full shadow-xl border border-white/20 transition tracking-wider flex items-center gap-2">
         <span>最強なのは誰だ？<br>No.1? No.1? Who's that?</span>
       </button>
     </div>
@@ -79,7 +101,7 @@
     </div>
 
     <div id="editor-body" class="hidden mt-3 pt-3 border-t border-slate-800 flex flex-col gap-3">
-      <!-- 景品リストヘッダー -->
+      <p class="text-slate-500 text-[11px]">編集はすぐ盤面に反映されます（投擲中は次の投擲から）。</p>
       <div class="grid grid-cols-12 gap-2 text-slate-400 font-bold px-1 text-[11px]">
         <div class="col-span-3">盤面名称</div>
         <div class="col-span-4">当落テキスト</div>
@@ -87,51 +109,67 @@
         <div class="col-span-2 text-center">削除</div>
       </div>
 
-      <!-- 景品リスト行コンテナ -->
       <div id="prize-items-container" class="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1"></div>
 
-      <!-- 操作ボタン群 -->
       <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800/80">
         <button id="add-prize-btn" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center gap-1">
           <span>＋ 景品を追加</span>
         </button>
-        <div class="flex gap-2">
-          <button id="reset-prizes-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition font-bold">初期状態に戻す</button>
-          <button id="apply-prizes-btn" class="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black transition">盤面に反映</button>
-        </div>
+        <button id="reset-prizes-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition font-bold">初期状態に戻す</button>
       </div>
     </div>
   </section>
 
   <!-- 全画面リザルトオーバーレイ -->
-  <div id="result-overlay" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center cursor-pointer">
-    <div id="result-card" class="result-pop flex flex-col items-center justify-center max-w-4xl w-full">
-      <div id="result-badge" class="text-sm font-black tracking-widest px-4 py-1 rounded-full mb-4 inline-block shadow-lg">
-        RESULT
-      </div>
+  <div id="result-overlay" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center p-6 text-center cursor-pointer overflow-y-auto">
+    <div id="result-card" class="result-pop my-auto flex flex-col items-center justify-center max-w-4xl w-full">
+      <div id="result-badge" class="text-sm font-black tracking-widest px-4 py-1 rounded-full mb-4 inline-block shadow-lg">RESULT</div>
       <div id="result-text" class="font-black tracking-tight leading-tight select-none"></div>
+      <div id="result-sub" class="hidden mt-3 text-sm sm:text-base font-bold text-slate-300"></div>
 
-      <!-- たわし当選時にのみ出現する秒数指定ネタバラシリンク -->
-      <div id="tawashi-link-container" class="hidden mt-8 flex flex-col items-center gap-1">
-        <a id="tawashi-roar-link" href="https://youtu.be/qQj5tmiiaw8?si=rqpEzGHVw-1Czbbt&t=49" target="_blank" rel="noopener noreferrer" class="mt-1 bg-red-600/90 hover:bg-red-500 text-white font-bold text-sm px-5 py-2.5 rounded-full border border-red-400/40 shadow-xl transition transform hover:scale-105 flex items-center gap-2">
-          <span>▶ 意味不明だった人へ</span>
-        </a>
+      <!-- たわし当選時：その場で答え合わせ（MVを該当箇所から再生） -->
+      <div id="tawashi-answer" class="hidden mt-6 w-full max-w-xl flex flex-col items-center gap-2 cursor-default">
+        <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-white/15 shadow-2xl bg-black">
+          <iframe id="mv-frame" class="absolute inset-0 w-full h-full" title="十王星南 - Roar MV" frameborder="0"
+            allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        </div>
+        <a id="tawashi-roar-link" href="#" target="_blank" rel="noopener noreferrer" class="text-[11px] text-slate-400 underline hover:text-slate-200">再生されない場合はYouTubeで開く</a>
       </div>
+
+      <div id="tap-hint" class="mt-8 text-xs text-slate-500 fade-up" style="animation-delay:0.6s">画面をタップしてもう一度</div>
     </div>
   </div>
 
   <script>
+    // ===== 調整用パラメーター（ここだけ触れば手触りが変わる） =====
+    const CONFIG = {
+      MV_ID: "Mdyk3h5-TQE",   // Roar MV
+      MV_PUNCH_SEC: 53,        // 「私だわ」が聴こえる秒数
+      BASE_SPEED: 0.24,        // 盤面の回転速度（rad / 60fpsの1フレーム）
+      FLIGHT_MS: 200,          // ダーツの飛行時間
+      HITSTOP_MS: 110,         // 命中時に盤面が止まる時間
+      SHAKE_PX: 10,            // 命中時の画面振動の最大幅
+      DECEL: 0.952,            // 減速率（1フレームあたり。小さいほど早く止まる）
+      STOP_SPEED: 0.0015,      // この速度を下回ったら停止
+      HIGHLIGHT_MS: 900,       // 停止後、当たりを光らせてから結果を出すまで
+      NEAR_MISS_RAD: 0.3,      // この角度以内にパジェロがあれば「惜しい」表示
+      PX_TO_CM: 0.2            // 「あと○cm」の換算
+    };
+    const MV_URL = `https://www.youtube.com/watch?v=${CONFIG.MV_ID}`;
+    const MV_PUNCH_URL = `${MV_URL}&t=${CONFIG.MV_PUNCH_SEC}s`;
+    const MV_EMBED_URL = `https://www.youtube.com/embed/${CONFIG.MV_ID}?start=${CONFIG.MV_PUNCH_SEC}&autoplay=1&playsinline=1&rel=0`;
+
     const DEFAULT_PRIZES = [
-      { id: 1, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 1, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ" },
       { id: 2, name: "パジェロ", weight: 1.1, color: "#e63946", textColor: "#ffffff", desc: "パジェロ" },
-      { id: 3, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 3, name: "たわし", weight: 0.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ" },
       { id: 4, name: "センブリソーダ1年分", weight: 1.0, color: "#eab308", textColor: "#000000", desc: "センブリソーダ1年分" },
       { id: 5, name: "SSD", weight: 1.3, color: "#ec4899", textColor: "#ffffff", desc: "SSD" },
-      { id: 6, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 6, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ" },
       { id: 7, name: "倉本グループ経営温泉旅館宿泊券", weight: 1.2, color: "#f97316", textColor: "#ffffff", desc: "倉本グループ経営温泉旅館宿泊券" },
       { id: 8, name: "AP回復ドリンク", weight: 1.4, color: "#10b981", textColor: "#022c22", desc: "AP回復ドリンク" },
       { id: 9, name: "初星ホエイプロテイン1年分", weight: 1.2, color: "#facc15", textColor: "#422006", desc: "初星ホエイプロテイン1年分" },
-      { id: 10, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ（笑）" },
+      { id: 10, name: "たわし", weight: 2.2, color: "#7c4a3a", textColor: "#ffffff", desc: "たわしだわ" },
       { id: 11, name: "ふわふわでもこもこ", weight: 1.2, color: "#a855f7", textColor: "#ffffff", desc: "ふわふわでもこもこ" }
     ];
 
@@ -143,36 +181,100 @@
     // DOM要素
     const canvas = document.getElementById("dartboard");
     const ctx = canvas.getContext("2d");
+    const boardWrap = document.getElementById("board-wrap");
+    const flashEl = document.getElementById("flash");
     const resultOverlay = document.getElementById("result-overlay");
     const resultBadge = document.getElementById("result-badge");
     const resultText = document.getElementById("result-text");
-    const tawashiLinkContainer = document.getElementById("tawashi-link-container");
+    const resultSub = document.getElementById("result-sub");
+    const tawashiAnswer = document.getElementById("tawashi-answer");
+    const mvFrame = document.getElementById("mv-frame");
     const tawashiRoarLink = document.getElementById("tawashi-roar-link");
     const aimGuide = document.getElementById("aim-guide");
     const cheatContainer = document.getElementById("cheat-container");
     const missBtn = document.getElementById("miss-pajero-btn");
     const retryBtn = document.getElementById("retry-btn");
+    const soundBtn = document.getElementById("sound-btn");
 
-    // GUIエディタ要素
+    document.getElementById("mv-link").href = MV_URL;
+    tawashiRoarLink.href = MV_PUNCH_URL;
+
     const toggleEditor = document.getElementById("toggle-editor");
     const editorBody = document.getElementById("editor-body");
     const editorArrow = document.getElementById("editor-arrow");
     const prizeContainer = document.getElementById("prize-items-container");
     const addPrizeBtn = document.getElementById("add-prize-btn");
-    const applyPrizesBtn = document.getElementById("apply-prizes-btn");
     const resetPrizesBtn = document.getElementById("reset-prizes-btn");
 
-    // 物理・回転状態
-    const BASE_SPEED = 0.24;
-    let currentSpeed = BASE_SPEED;
+    // ===== サウンド（WebAudioで合成。外部ファイルなし） =====
+    let soundOn = true;
+    try { soundOn = localStorage.getItem("roar-sound") !== "off"; } catch (e) {}
+    let actx = null;
+    function audio() {
+      if (!soundOn) return null;
+      if (!actx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        actx = new AC();
+      }
+      if (actx.state === "suspended") actx.resume();
+      return actx;
+    }
+    function tone(type, f0, f1, dur, vol, delay = 0) {
+      const a = audio(); if (!a) return;
+      const t = a.currentTime + delay;
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);   // アタックは強く
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);  // 残響はほどほど
+      o.connect(g).connect(a.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    function noise(dur, vol, freq, q = 1, delay = 0) {
+      const a = audio(); if (!a) return;
+      const t = a.currentTime + delay;
+      const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = a.createBufferSource(); src.buffer = buf;
+      const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = q;
+      const g = a.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(bp).connect(g).connect(a.destination);
+      src.start(t);
+    }
+    const SFX = {
+      throw() { noise(0.18, 0.25, 1800, 0.8); },
+      hit() { tone("sine", 160, 55, 0.16, 0.7); noise(0.05, 0.6, 3000, 0.7); },
+      tick() { tone("square", 2400, 2400, 0.018, 0.05); },
+      pajero() { [523, 659, 784, 1047].forEach((f, i) => tone("triangle", f, f, 0.22, 0.25, i * 0.09)); tone("triangle", 1047, 1047, 0.6, 0.25, 0.36); },
+      tawashi() { tone("sawtooth", 520, 130, 0.7, 0.14); tone("sine", 260, 65, 0.7, 0.2); },
+      prize() { tone("triangle", 880, 880, 0.15, 0.2); tone("triangle", 1320, 1320, 0.3, 0.2, 0.1); }
+    };
+    function renderSoundBtn() { soundBtn.textContent = soundOn ? "🔊" : "🔇"; }
+    soundBtn.addEventListener("click", () => {
+      soundOn = !soundOn;
+      try { localStorage.setItem("roar-sound", soundOn ? "on" : "off"); } catch (e) {}
+      renderSoundBtn();
+    });
+    renderSoundBtn();
+
+    // ===== 状態 =====
+    let currentSpeed = CONFIG.BASE_SPEED;
     let wheelAngle = 0;
-    let state = "IDLE"; // IDLE, FLYING, DECELERATING, HIGHLIGHTING, FINISHED
+    let state = "IDLE"; // IDLE, FLYING, HITSTOP, DECELERATING, HIGHLIGHTING, FINISHED
 
     let dart = null;
     let hitSliceIndex = -1;
     let highlightPulse = 0;
+    let hitstopStart = 0;
+    let sparks = [];       // 命中時の火花（盤面ローカル座標）
+    let tickAccum = 0;     // 減速中の「カチカチ」用
 
-    // スライス計算
     function recalculateSlices() {
       const totalWeight = currentPrizes.reduce((sum, p) => sum + (Number(p.weight) || 0.1), 0);
       let accumAngle = 0;
@@ -181,17 +283,15 @@
         const angle = (w / totalWeight) * Math.PI * 2;
         const start = accumAngle;
         accumAngle += angle;
-        return {
-          ...p,
-          index: idx,
-          startAngle: start,
-          endAngle: accumAngle,
-          arcAngle: angle
-        };
+        return { ...p, index: idx, startAngle: start, endAngle: accumAngle, arcAngle: angle };
       });
     }
 
-    // GUIエディタの再描画
+    // 編集を即反映（投擲中は止まってから）
+    function liveApply() {
+      if (state === "IDLE") recalculateSlices();
+    }
+
     function renderGUIEditor() {
       prizeContainer.innerHTML = "";
       currentPrizes.forEach((p, idx) => {
@@ -218,38 +318,24 @@
         const nameInput = row.querySelector(".name-input");
         const descInput = row.querySelector(".desc-input");
         const weightInput = row.querySelector(".weight-input");
-        const minusBtn = row.querySelector(".minus-btn");
-        const plusBtn = row.querySelector(".plus-btn");
-        const delBtn = row.querySelector(".del-btn");
 
-        nameInput.addEventListener("input", (e) => { p.name = e.target.value; });
-        descInput.addEventListener("input", (e) => { p.desc = e.target.value; });
-        
+        nameInput.addEventListener("input", (e) => { p.name = e.target.value; liveApply(); });
+        descInput.addEventListener("input", (e) => { p.desc = e.target.value; liveApply(); });
+
         const updateWeight = (val) => {
-          let num = Math.max(0.1, Math.round(val * 10) / 10);
+          const num = Math.max(0.1, Math.round(val * 10) / 10);
           p.weight = num;
           weightInput.value = num.toFixed(1);
+          liveApply();
         };
-
-        weightInput.addEventListener("change", (e) => {
-          updateWeight(parseFloat(e.target.value) || 0.1);
-        });
-
-        minusBtn.addEventListener("click", () => {
-          updateWeight(Number(p.weight) - 0.1);
-        });
-
-        plusBtn.addEventListener("click", () => {
-          updateWeight(Number(p.weight) + 0.1);
-        });
-
-        delBtn.addEventListener("click", () => {
-          if (currentPrizes.length <= 2) {
-            alert("景品は2つ以上必要です");
-            return;
-          }
+        weightInput.addEventListener("change", (e) => updateWeight(parseFloat(e.target.value) || 0.1));
+        row.querySelector(".minus-btn").addEventListener("click", () => updateWeight(Number(p.weight) - 0.1));
+        row.querySelector(".plus-btn").addEventListener("click", () => updateWeight(Number(p.weight) + 0.1));
+        row.querySelector(".del-btn").addEventListener("click", () => {
+          if (currentPrizes.length <= 2) { alert("景品は2つ以上必要です"); return; }
           currentPrizes.splice(idx, 1);
           renderGUIEditor();
+          liveApply();
         });
 
         prizeContainer.appendChild(row);
@@ -263,15 +349,15 @@
     recalculateSlices();
     renderGUIEditor();
 
-    // 盤面描画
+    // ===== 描画 =====
     function drawBoard() {
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
       const radius = 270;
+      const revealing = state === "HIGHLIGHTING" || state === "FINISHED";
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 外周フレーム
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius + 18, 0, Math.PI * 2);
@@ -281,52 +367,42 @@
       ctx.strokeStyle = "#f59e0b";
       ctx.stroke();
 
-      // ホイールローカル座標系
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(wheelAngle);
 
       slices.forEach((slice, idx) => {
-        const isHitSlice = (state === "HIGHLIGHTING" || state === "FINISHED") && idx === hitSliceIndex;
+        const isHitSlice = revealing && idx === hitSliceIndex;
 
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.arc(0, 0, radius, slice.startAngle, slice.endAngle);
         ctx.closePath();
 
-        if (state === "HIGHLIGHTING" || state === "FINISHED") {
+        ctx.fillStyle = slice.color || "#475569";
+        ctx.fill();
+        if (revealing) {
           if (isHitSlice) {
-            ctx.fillStyle = slice.color;
-            ctx.fill();
-            ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + Math.sin(highlightPulse) * 0.25})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(highlightPulse) * 0.2})`;
             ctx.fill();
             ctx.lineWidth = 6;
             ctx.strokeStyle = "#ffd700";
-            ctx.stroke();
           } else {
-            ctx.fillStyle = slice.color;
-            ctx.fill();
-            ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
             ctx.fill();
             ctx.lineWidth = 1.5;
             ctx.strokeStyle = "rgba(255,255,255,0.3)";
-            ctx.stroke();
           }
         } else {
-          ctx.fillStyle = slice.color || "#475569";
-          ctx.fill();
           ctx.lineWidth = 2.5;
           ctx.strokeStyle = "#ffffff";
-          ctx.stroke();
         }
+        ctx.stroke();
 
-        // テキスト
         ctx.save();
-        const midAngle = (slice.startAngle + slice.endAngle) / 2;
-        ctx.rotate(midAngle);
+        ctx.rotate((slice.startAngle + slice.endAngle) / 2);
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-
         if (isHitSlice) {
           ctx.fillStyle = "#ffffff";
           ctx.shadowColor = "#000000";
@@ -334,28 +410,48 @@
         } else {
           ctx.fillStyle = slice.textColor || "#ffffff";
         }
-
         const text = slice.name || "";
-        const maxLen = text.length;
         let fontSize = 22;
-        if (maxLen > 10) fontSize = 15;
-        else if (maxLen > 6) fontSize = 18;
+        if (text.length > 10) fontSize = 15;
+        else if (text.length > 6) fontSize = 18;
         if (slice.arcAngle < 0.25) fontSize = 13;
-
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillText(text, radius - 20, 0);
         ctx.restore();
       });
 
-      // 刺さったダーツ
+      // 火花（命中位置から放射。暗い縁取りで明るい盤面でも見える）
+      const now = performance.now();
+      sparks = sparks.filter(s => now - s.born < s.life);
+      sparks.forEach(s => {
+        const t = (now - s.born) / s.life;
+        const r0 = s.speed * t * 0.4, r1 = s.speed * t;
+        const x0 = s.x + Math.cos(s.a) * r0, y0 = s.y + Math.sin(s.a) * r0;
+        const x1 = s.x + Math.cos(s.a) * r1, y1 = s.y + Math.sin(s.a) * r1;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = `rgba(30,20,0,${0.6 * (1 - t)})`;
+        ctx.lineWidth = 7 * (1 - t) + 1;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,236,150,${1 - t})`;
+        ctx.lineWidth = 4 * (1 - t) + 0.5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      });
+
       if (dart && dart.isPinned) {
+        // ヒットストップ中は見た目だけ震わせる（判定位置は動かさない）
+        let jx = 0, jy = 0;
+        if (state === "HITSTOP") {
+          const k = 1 - (now - hitstopStart) / CONFIG.HITSTOP_MS;
+          jx = (Math.random() - 0.5) * 6 * k;
+          jy = (Math.random() - 0.5) * 6 * k;
+        }
         ctx.save();
-        ctx.translate(dart.localX, dart.localY);
+        ctx.translate(dart.localX + jx, dart.localY + jy);
         ctx.rotate(dart.stickAngle);
         drawDartGraphic(0, 0, true);
         ctx.restore();
 
-        if (state === "HIGHLIGHTING" || state === "FINISHED") {
+        if (revealing) {
           ctx.save();
           ctx.translate(dart.localX, dart.localY);
 
@@ -378,26 +474,24 @@
           ctx.rotate(-wheelAngle);
           ctx.fillStyle = "#dc2626";
           ctx.beginPath();
-          ctx.roundRect(-24, -38, 48, 20, 6);
+          ctx.roundRect(-28, -42, 56, 22, 6);
           ctx.fill();
           ctx.strokeStyle = "#ffffff";
           ctx.lineWidth = 1.5;
           ctx.stroke();
-
           ctx.fillStyle = "#ffffff";
-          ctx.font = "black 10px sans-serif";
+          ctx.font = "900 13px sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("HERE!", 0, -28);
+          ctx.fillText("HERE!", 0, -31);
           ctx.restore();
 
           ctx.restore();
         }
       }
 
-      ctx.restore(); // ホイール座標系終了
+      ctx.restore();
 
-      // ハブ
       ctx.beginPath();
       ctx.arc(cx, cy, 28, 0, Math.PI * 2);
       ctx.fillStyle = "#0f172a";
@@ -411,19 +505,18 @@
       ctx.fillStyle = "#f59e0b";
       ctx.fill();
 
-      // 飛翔中のダーツ
       if (state === "FLYING" && dart) {
         ctx.save();
         ctx.translate(dart.currentX, dart.currentY);
         drawDartGraphic(0, 0, false, dart.progress);
         ctx.restore();
       }
+      ctx.restore();
     }
 
     function drawDartGraphic(x, y, isPinned, progress = 1) {
       ctx.save();
       ctx.translate(x, y);
-
       if (!isPinned) {
         const scale = 2.2 - progress * 1.2;
         ctx.scale(scale, scale);
@@ -460,70 +553,75 @@
       ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.fill();
-
       ctx.restore();
     }
 
-    // 投擲開始
+    // ===== 手応え：画面振動とフラッシュ =====
+    function shakeBoard() {
+      const start = performance.now();
+      const dur = 260;
+      function step(now) {
+        const t = (now - start) / dur;
+        if (t >= 1) { boardWrap.style.transform = ""; return; }
+        const amp = CONFIG.SHAKE_PX * Math.pow(1 - t, 2);   // 最初強く、収束
+        const x = (Math.random() - 0.5) * 2 * amp;
+        const y = (Math.random() - 0.5) * 2 * amp * 0.6;
+        boardWrap.style.transform = `translate(${x}px, ${y}px)`;
+        requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+    function flash(opacity = 0.35) {
+      flashEl.style.transition = "none";
+      flashEl.style.opacity = String(opacity);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        flashEl.style.transition = "opacity 220ms ease-out";
+        flashEl.style.opacity = "0";
+      }));
+    }
+
+    // ===== 投擲 =====
     function shootDart(worldTargetX, worldTargetY, designatedLocalAngle = null, designatedDist = null) {
       if (state !== "IDLE") return;
+      recalculateSlices();
       state = "FLYING";
+      SFX.throw();
 
       aimGuide.style.opacity = "0";
-      cheatContainer.style.display = "none";
+      cheatContainer.style.visibility = "hidden";   // レイアウトを崩さずに隠す
 
-      const cx = canvas.width / 2;
-      const startX = cx;
+      const startX = canvas.width / 2;
       const startY = canvas.height + 60;
 
       dart = {
-        startX,
-        startY,
-        targetX: worldTargetX,
-        targetY: worldTargetY,
-        currentX: startX,
-        currentY: startY,
-        progress: 0,
-        isPinned: false,
-        designatedLocalAngle: designatedLocalAngle,
-        designatedDist: designatedDist
+        startX, startY,
+        targetX: worldTargetX, targetY: worldTargetY,
+        currentX: startX, currentY: startY,
+        progress: 0, isPinned: false,
+        designatedLocalAngle, designatedDist
       };
 
-      const duration = 240;
       const startTime = performance.now();
-
       function animateFly(now) {
-        const elapsed = now - startTime;
-        dart.progress = Math.min(1, elapsed / duration);
-        const p = dart.progress;
-
+        dart.progress = Math.min(1, (now - startTime) / CONFIG.FLIGHT_MS);
+        const p = 1 - Math.pow(1 - dart.progress, 2);   // 手元で速く、的の手前で吸い込まれる
         dart.currentX = dart.startX + (dart.targetX - dart.startX) * p;
         dart.currentY = dart.startY + (dart.targetY - dart.startY) * p;
-
-        if (p < 1) {
-          requestAnimationFrame(animateFly);
-        } else {
-          onDartHit();
-        }
+        if (dart.progress < 1) requestAnimationFrame(animateFly);
+        else onDartHit();
       }
       requestAnimationFrame(animateFly);
     }
 
-    // 命中時処理
     function onDartHit() {
-      state = "DECELERATING";
-
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-
       let localX, localY;
 
-      // ネタボタンによる固定目標がある場合、そのローカル座標に直接固定
       if (dart.designatedLocalAngle !== null) {
-        const angle = dart.designatedLocalAngle;
         const dist = dart.designatedDist || 180;
-        localX = Math.cos(angle) * dist;
-        localY = Math.sin(angle) * dist;
+        localX = Math.cos(dart.designatedLocalAngle) * dist;
+        localY = Math.sin(dart.designatedLocalAngle) * dist;
       } else {
         const dx = dart.targetX - cx;
         const dy = dart.targetY - cy;
@@ -538,17 +636,29 @@
       dart.stickAngle = Math.atan2(localY, localX);
       dart.isPinned = true;
 
-      // スライスの特定
       let hitAngle = Math.atan2(localY, localX);
       if (hitAngle < 0) hitAngle += Math.PI * 2;
-
+      dart.hitAngle = hitAngle;
+      dart.hitDist = Math.hypot(localX, localY);
       hitSliceIndex = slices.findIndex(s => hitAngle >= s.startAngle && hitAngle < s.endAngle);
       if (hitSliceIndex === -1) hitSliceIndex = 0;
+
+      // 命中の手応え：ヒットストップ → 火花・振動・フラッシュ・音
+      state = "HITSTOP";
+      hitstopStart = performance.now();
+      const born = hitstopStart;
+      for (let i = 0; i < 10; i++) {
+        sparks.push({ x: localX, y: localY, a: Math.random() * Math.PI * 2, speed: 30 + Math.random() * 30, born, life: 180 + Math.random() * 120 });
+      }
+      SFX.hit();
+      shakeBoard();
+      flash(0.28);
     }
 
     // No.1? No.1? Who's that?（パジェロのすぐ横のたわしに100%確実に刺す）
     function shootMissPajero() {
       if (state !== "IDLE") return;
+      recalculateSlices();
 
       const pajeroIdx = slices.findIndex(s => s.name === "パジェロ" || s.id === 2);
       if (pajeroIdx === -1) {
@@ -561,68 +671,80 @@
       const nextSlice = slices[(pajeroIdx + 1) % slices.length];
 
       let targetSlice;
-      if (prevSlice.name.includes("たわし")) {
-        targetSlice = prevSlice;
-      } else if (nextSlice.name.includes("たわし")) {
-        targetSlice = nextSlice;
-      } else {
-        targetSlice = Math.random() < 0.5 ? prevSlice : nextSlice;
-      }
+      if (prevSlice.name.includes("たわし")) targetSlice = prevSlice;
+      else if (nextSlice.name.includes("たわし")) targetSlice = nextSlice;
+      else targetSlice = Math.random() < 0.5 ? prevSlice : nextSlice;
 
-      let localAngle;
-      if (targetSlice.endAngle === pajeroSlice.startAngle) {
-        localAngle = targetSlice.endAngle - 0.05;
-      } else {
-        localAngle = targetSlice.startAngle + 0.05;
-      }
+      let localAngle = (targetSlice.endAngle === pajeroSlice.startAngle)
+        ? targetSlice.endAngle - 0.05
+        : targetSlice.startAngle + 0.05;
       localAngle = (localAngle + Math.PI * 2) % (Math.PI * 2);
 
       const dist = 180 + (Math.random() * 20 - 10);
 
-      const flightFrames = 240 / (1000 / 60);
-      const futureWheelAngle = wheelAngle + (currentSpeed * flightFrames);
+      // 着弾時の盤面角度を予測して、見た目の飛行先も合わせる
+      const futureWheelAngle = wheelAngle + currentSpeed * (CONFIG.FLIGHT_MS / (1000 / 60));
       const futureWorldAngle = futureWheelAngle + localAngle;
-
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      const targetX = cx + Math.cos(futureWorldAngle) * dist;
-      const targetY = cy + Math.sin(futureWorldAngle) * dist;
-
-      shootDart(targetX, targetY, localAngle, dist);
+      shootDart(cx + Math.cos(futureWorldAngle) * dist, cy + Math.sin(futureWorldAngle) * dist, localAngle, dist);
     }
 
-    // 全画面リザルト表示
+    // パジェロまでの距離（隣接していて近ければcm表記）
+    function nearMissCm() {
+      if (!dart) return null;
+      const pajero = slices.find(s => s.name === "パジェロ" || s.id === 2);
+      if (!pajero) return null;
+      const a = dart.hitAngle;
+      const angDiff = (x, y) => { const d = Math.abs(x - y) % (Math.PI * 2); return Math.min(d, Math.PI * 2 - d); };
+      const diff = Math.min(angDiff(a, pajero.startAngle), angDiff(a, pajero.endAngle));
+      if (diff > CONFIG.NEAR_MISS_RAD) return null;
+      return Math.max(1, Math.round(diff * dart.hitDist * CONFIG.PX_TO_CM));
+    }
+
+    // ===== リザルト =====
     function showResult(prize) {
       retryBtn.classList.remove("hidden");
 
       const text = (prize && prize.desc) ? prize.desc : (prize ? prize.name : "ハズレ");
       resultText.textContent = text;
 
-      if (text.length <= 4) {
-        resultText.className = "font-black tracking-tight text-7xl sm:text-8xl md:text-9xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)]";
-      } else if (text.length <= 8) {
-        resultText.className = "font-black tracking-tight text-5xl sm:text-6xl md:text-7xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)]";
-      } else {
-        resultText.className = "font-black tracking-tight text-3xl sm:text-4xl md:text-5xl drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)] px-4";
-      }
+      let size;
+      if (text.length <= 5) size = "text-7xl sm:text-8xl md:text-9xl";
+      else if (text.length <= 8) size = "text-5xl sm:text-6xl md:text-7xl";
+      else size = "text-3xl sm:text-4xl md:text-5xl px-4";
+      resultText.className = `slam font-black tracking-tight leading-tight select-none drop-shadow-[0_10px_35px_rgba(0,0,0,0.95)] ${size}`;
 
       const isTawashi = prize && (prize.name.includes("たわし") || (prize.desc && prize.desc.includes("たわし")));
+      resultSub.classList.add("hidden");
+      tawashiAnswer.classList.add("hidden");
 
       if (prize && (prize.name === "パジェロ" || prize.id === 2)) {
         resultText.style.color = "#ef4444";
         resultBadge.textContent = "★ GRAND PRIZE ★";
         resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-red-600 text-white inline-block shadow-lg";
-        tawashiLinkContainer.classList.add("hidden");
+        SFX.pajero();
       } else if (isTawashi) {
         resultText.style.color = "#f59e0b";
         resultBadge.textContent = "TAWASHI";
         resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-amber-800 text-amber-200 inline-block shadow-lg";
-        tawashiLinkContainer.classList.remove("hidden");
+        const cm = nearMissCm();
+        if (cm !== null) {
+          resultSub.textContent = `パジェロまで あと ${cm}cm`;
+          resultSub.className = "fade-up mt-3 text-sm sm:text-base font-bold text-slate-300";
+          resultSub.style.animationDelay = "0.35s";
+        }
+        // 答え合わせ：ページを離れずに該当箇所から再生
+        mvFrame.src = MV_EMBED_URL;
+        tawashiAnswer.classList.remove("hidden");
+        tawashiAnswer.classList.add("fade-up");
+        tawashiAnswer.style.animationDelay = "0.5s";
+        SFX.tawashi();
       } else {
         resultText.style.color = "#38bdf8";
         resultBadge.textContent = "PRIZE GET";
         resultBadge.className = "text-sm font-black tracking-widest px-4 py-1 rounded-full mb-3 bg-sky-900 text-sky-200 inline-block shadow-lg";
-        tawashiLinkContainer.classList.add("hidden");
+        SFX.prize();
       }
 
       resultOverlay.classList.remove("hidden");
@@ -633,38 +755,48 @@
       dart = null;
       hitSliceIndex = -1;
       highlightPulse = 0;
-      currentSpeed = BASE_SPEED;
+      sparks = [];
+      currentSpeed = CONFIG.BASE_SPEED;
+      mvFrame.src = "about:blank";   // 再生を止める
       resultOverlay.classList.add("hidden");
-      tawashiLinkContainer.classList.add("hidden");
+      tawashiAnswer.classList.add("hidden");
       retryBtn.classList.add("hidden");
       aimGuide.style.opacity = "1";
-      cheatContainer.style.display = "flex";
+      cheatContainer.style.visibility = "visible";
+      recalculateSlices();
     }
 
-    function loop() {
+    // ===== メインループ（経過時間ベース：高リフレッシュレートでも速さが変わらない） =====
+    let lastTime = performance.now();
+    function loop(now) {
+      const f = Math.min(4, (now - lastTime) / (1000 / 60));   // 60fps換算のフレーム数
+      lastTime = now;
+
       if (state === "IDLE" || state === "FLYING") {
-        wheelAngle = (wheelAngle + currentSpeed) % (Math.PI * 2);
+        wheelAngle = (wheelAngle + currentSpeed * f) % (Math.PI * 2);
+      } else if (state === "HITSTOP") {
+        if (now - hitstopStart >= CONFIG.HITSTOP_MS) state = "DECELERATING";
       } else if (state === "DECELERATING") {
-        wheelAngle = (wheelAngle + currentSpeed) % (Math.PI * 2);
-        currentSpeed *= 0.965;
+        const d = currentSpeed * f;
+        wheelAngle = (wheelAngle + d) % (Math.PI * 2);
+        currentSpeed *= Math.pow(CONFIG.DECEL, f);
 
-        if (currentSpeed < 0.0005) {
+        // 減速が耳で分かるように一定角度ごとにカチッ
+        tickAccum += d;
+        if (tickAccum >= Math.PI / 6) { tickAccum = 0; SFX.tick(); }
+
+        if (currentSpeed < CONFIG.STOP_SPEED) {
           currentSpeed = 0;
+          tickAccum = 0;
           state = "HIGHLIGHTING";
-
           const hitPrize = slices[hitSliceIndex];
           const highlightStart = performance.now();
-
-          function animateHighlight(now) {
-            const elapsed = now - highlightStart;
-            highlightPulse = elapsed * 0.008;
-
-            if (elapsed < 1800) {
-              requestAnimationFrame(animateHighlight);
-            } else {
-              state = "FINISHED";
-              showResult(hitPrize);
-            }
+          function animateHighlight(t) {
+            const elapsed = t - highlightStart;
+            highlightPulse = elapsed * 0.012;
+            if (state !== "HIGHLIGHTING") return;
+            if (elapsed < CONFIG.HIGHLIGHT_MS) requestAnimationFrame(animateHighlight);
+            else { state = "FINISHED"; showResult(hitPrize); }
           }
           requestAnimationFrame(animateHighlight);
         }
@@ -674,70 +806,50 @@
       requestAnimationFrame(loop);
     }
 
-    // 盤面クリック投擲
+    // ===== 入力 =====
     canvas.addEventListener("pointerdown", (e) => {
       if (state !== "IDLE") return;
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
       shootDart(x, y);
     });
 
-    missBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      shootMissPajero();
-    });
-
+    missBtn.addEventListener("click", (e) => { e.stopPropagation(); shootMissPajero(); });
     retryBtn.addEventListener("click", resetGame);
-    
-    // 全画面リザルトタップでリセット
     resultOverlay.addEventListener("click", resetGame);
+    tawashiAnswer.addEventListener("click", (e) => e.stopPropagation());   // 動画周りのタップではリセットしない
 
-    // ネタバラシリンクをクリックしたときはリセットせずリンク先に遷移
-    tawashiRoarLink.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-
-    // エディタ開閉
-    toggleEditor.addEventListener("click", () => {
-      const isHidden = editorBody.classList.contains("hidden");
-      if (isHidden) {
-        editorBody.classList.remove("hidden");
-        editorArrow.textContent = "▲";
-      } else {
-        editorBody.classList.add("hidden");
-        editorArrow.textContent = "▼";
+    // キーボード：Space/Enterでネタ投擲、結果画面ならもう一度
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        if (state === "FINISHED") resetGame();
+        else shootMissPajero();
       }
     });
 
-    // 景品追加
+    toggleEditor.addEventListener("click", () => {
+      const isHidden = editorBody.classList.toggle("hidden");
+      editorArrow.textContent = isHidden ? "▼" : "▲";
+    });
+
     addPrizeBtn.addEventListener("click", () => {
-      const nextId = Date.now();
-      const color = COLOR_PALETTE[currentPrizes.length % COLOR_PALETTE.length];
       currentPrizes.push({
-        id: nextId,
+        id: Date.now(),
         name: "新景品",
         weight: 1.0,
-        color: color,
+        color: COLOR_PALETTE[currentPrizes.length % COLOR_PALETTE.length],
         textColor: "#ffffff",
         desc: "新景品"
       });
       renderGUIEditor();
+      liveApply();
     });
 
-    // 反映
-    applyPrizesBtn.addEventListener("click", () => {
-      recalculateSlices();
-      renderGUIEditor();
-      resetGame();
-    });
-
-    // 初期化
     resetPrizesBtn.addEventListener("click", () => {
       currentPrizes = JSON.parse(JSON.stringify(DEFAULT_PRIZES));
-      recalculateSlices();
       renderGUIEditor();
       resetGame();
     });
